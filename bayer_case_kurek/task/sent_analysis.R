@@ -2,13 +2,15 @@
 ### Sentiment analysis
 
 
-install.packages("ggplot2")
-install.packages("magrittr")
-install.packages("dplyr")
-install.packages(c('e1071', 'rpart'))
-install.packages("tibble")
-install.packages("dplyr")
-install.packages("tm")
+#install.packages("ggplot2")
+#install.packages("magrittr")
+#install.packages("dplyr")
+#install.packages(c('e1071', 'rpart'))
+#install.packages("tibble")
+#install.packages("dplyr")
+#install.packages("tm")
+#install.packages("wordcloud")
+#install.packages("RColorBrewer")
 
 library(RTextTools)
 library(dplyr)
@@ -18,53 +20,28 @@ library(tm)
 library(openxlsx)
 library(ggplot2)
 library(dplyr)
+library(wordcloud)
+library(RColorBrewer)
 
 
 setwd("/Users/martinkurek/Documents/R Repo/bayer_case")
 
 
-## Part 1: Vizualise distribution of sentiments
+## Part 1: Data integration and transformation
 
-# Read in data
+# Read in and load data
 sm_data <- read.xlsx("data/sentences_with_sentiment.xlsx")
 hist_data <- as.data.frame(sm_data[, 3:5])
+tdata <- as.data.frame(sm_data[, 2])
+sent <- assignSentiment(hist_data)
+full_data <- cbind(tdata, sent)
 
-
-## Create the dataframe for historgram
-Sentiment <- c("Positive", "Negative", "Neutral")
-Count <-
-  c(sum(hist_data$Positive),
-    sum(hist_data$Negative),
-    sum(hist_data$Neutral))
-total_count = sum(hist_data$Positive) + sum(hist_data$Negative) + sum(hist_data$Neutral)
-Percent <- c(paste(round((
-  sum(hist_data$Positive) / total_count
-) * 100), "%"),
-paste(round((
-  sum(hist_data$Negative) / total_count
-) * 100), "%"),
-paste(round((
-  sum(hist_data$Neutral) / total_count
-) * 100), "%"))
-hist_sum <- data.frame(Sentiment, Count, Percent)
-
-#Plot distribution with ggplot
-
-g <- ggplot(hist_sum, aes(Sentiment, Count))
-g + geom_col(fill = "blue") + geom_label(label = Percent)
-
-
-
-### Part 2: Sentiment Analysis
-
-## Declare useful functions
+# Declare functions
 
 # List of words function can be used for selection of features but was on purpose not applied due to lack of words.
 #  listOfWords<- {c(
 #    "pmlast"
 #  )}
-
-
 
 # Transform binary scema into nominal
 assignSentiment <- function(x) {
@@ -127,18 +104,35 @@ generateCorpus <- function(z) {
   return(y)
 }
 
-# Load data
 
-tdata <- as.data.frame(sm_data[, 2])
-sent <- assignSentiment(hist_data)
+## Part 2: Data exploration
+Sentiment <- c("Positive", "Negative", "Neutral")
+Count <-
+  c(sum(hist_data$Positive),
+    sum(hist_data$Negative),
+    sum(hist_data$Neutral))
+total_count = sum(hist_data$Positive) + sum(hist_data$Negative) + sum(hist_data$Neutral)
+Percent <- c(paste(round((
+  sum(hist_data$Positive) / total_count
+) * 100), "%"),
+paste(round((
+  sum(hist_data$Negative) / total_count
+) * 100), "%"),
+paste(round((
+  sum(hist_data$Neutral) / total_count
+) * 100), "%"))
+hist_sum <- data.frame(Sentiment, Count, Percent)
 
-full_data <- cbind(tdata, sent)
+summary(sm_data)
+
+#Plot distribution with ggplot
+
+g <- ggplot(hist_sum, aes(Sentiment, Count))
+g + geom_col(fill = "blue") + geom_label(label = Percent)
 
 
 
-# Treat rss_trn as tdata (Trainingdata) and rss_rel as sent
-
-############ Text Mining ###########
+### Part 3: Model training
 
 dtm.train <- generateDTM(tdata)
 
@@ -161,12 +155,17 @@ testset <- dtm.train[-testindex,]
 corpus.ts <- corupus.train[testindex]
 corpus.tss <- corupus.train[-testindex]
 
-## Feature selection by chosing frequency interval
+## Part 4: Feature selection by chosing frequency interval
 
 dim(trainset)
 
-# finding terms with lowest 2 and highest 5 frequency
-ft <- findFreqTerms(trainset, 2, 5)
+# finding terms with lowest 2 and highest 6 frequency
+ft <- findFreqTerms(trainset, 2, 6)
+
+#Wordcould
+freq_tf<- data.frame(sort(x = colSums(x = as.matrix(trainset)), decreasing = TRUE))
+wcloud<- wordcloud(words = rownames(x = freq_tf), freq = freq_tf[,1], max.words = 80, scale = c(2,.6), colors = brewer.pal(3, "BuGn"))
+
 
 length((ft))
 
@@ -174,7 +173,6 @@ trainset <-
   DocumentTermMatrix(corpus.ts, control = list(dictionary = ft))
 testset <-
   DocumentTermMatrix(corpus.tss, control = list(dictionary = ft))
-
 
 
 ##Train model with SVM 
@@ -195,7 +193,7 @@ pred.model <-
 predicted <- predict(pred.model, newdata = testset)
 
 
-## Evaluate Model
+## Part 5: Evaluation 
 table <- table("Predictions" = predicted, "Actual" = df.test)
 
 #Print Confusion Matrix
@@ -222,9 +220,4 @@ print(c("Precision class 'Neutral':", nB_precision_nt))
 print(c("Recall class 'Neutral':", nB_recall_nt))
 
 #Print overall accuracy
-print(paste(
-  "Accuracy:",
-  (
-    nB_precision_ng + nB_precision_nt + nB_precision_p + nB_recall_ng + nB_recall_nt + nB_recall_p
-  ) / 6
-))
+print(paste("Accuracy:", (round(table[1, 1]) + round(table[2, 2]) + round(table[3,3]))/ (sum(table[1, ]) + sum(table[2, ]) +  sum(table[3, ]))))
