@@ -160,11 +160,11 @@ corpus.tss <- corupus.train[-testindex]
 dim(trainset)
 
 # finding terms with lowest 2 and highest 6 frequency
-ft <- findFreqTerms(trainset, 2, 6)
+ft <- findFreqTerms(trainset, 1, 6)
 
 #Wordcould
 freq_tf<- data.frame(sort(x = colSums(x = as.matrix(trainset)), decreasing = TRUE))
-wcloud<- wordcloud(words = rownames(x = freq_tf), freq = freq_tf[,1], max.words = 80, scale = c(2,.6), colors = brewer.pal(3, "BuGn"))
+wcloud<- wordcloud(words = rownames(x = freq_tf), freq = freq_tf[,1], max.words = 100, scale = c(1,.6), colors = brewer.pal(3, "GnBu"))
 
 
 length((ft))
